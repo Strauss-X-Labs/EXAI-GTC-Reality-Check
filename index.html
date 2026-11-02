@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<!--
+  Reality Check: חוקי המשחק החדשים · v1.0.0
+  קובץ יחיד, בלי build, בלי שרת, בלי איסוף נתונים.
+  לעריכת תוכן: רק בלוק ה-JSON (id="content"). לא צריך לגעת בקוד.
+  מבנה (מונולית מודולרי בקובץ אחד): STYLE → MARKUP → CONTENT (spec) → DOMAIN (טהור) → UI (adapter)
+  ראו ARCHITECTURE.md
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="אבחון עצמי קצר: שש פרדיגמות של עבודה בעידן ה-AI, ומאיפה כדאי להתחיל.">
+<title>Reality Check: חוקי המשחק החדשים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Assistant:wght@400;600&display=swap">
+<style>
+/* ---------- STYLE ----------
+   Layout: one centered column, one paradigm per screen, progress rail on top. Single dark theme matching the deck. */
+:root {
+  --bg: #120f33;
+  --bg-2: #1c1850;
+  --surface: #221d5e;
+  --line: #3a3487;
+  --fg: #f3f1ff;
+  --muted: #b3aee0;
+  --accent: #8b7bff;
+  --accent-strong: #a99dff;
+  --action: #6352e0;        /* white text on it: 5.5:1 (WCAG AA) */
+  --action-hover: #5b49d6;  /* 6.2:1 */
+  --eyebrow: #ffa53a;
+  --ok: #5fd3a0;
+  --font-display: "Heebo", "Arial Hebrew", Arial, sans-serif;
+  --font-body: "Assistant", "Arial Hebrew", Arial, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(120% 80% at 100% 0%, var(--bg-2) 0%, var(--bg) 60%) fixed, var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+}
+.wrap { max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.eyebrow { color: var(--eyebrow); font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: .02em; margin: 0; }
+h1, h2 { font-family: var(--font-display); font-weight: 800; line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(30px, 7vw, 44px); }
+h2 { font-size: clamp(26px, 6vw, 36px); }
+.lead { color: var(--muted); margin: 0; max-width: 60ch; }
+
+/* progress */
+.rail { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.rail span { height: 6px; border-radius: 3px; background: var(--line); transition: background .3s; }
+.rail span.done { background: var(--accent); }
+.rail span.now { background: var(--eyebrow); }
+.rail-label { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; margin-top: -18px; }
+
+.head { display: flex; flex-direction: column; gap: 10px; }
+.shift { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 15px; }
+.shift b { color: var(--fg); font-weight: 600; }
+
+/* statements */
+.list { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; border: 0; }
+.list legend { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--muted); margin-bottom: 4px; padding: 0; }
+.item {
+  display: grid; grid-template-columns: 32px 1fr; gap: 14px; align-items: start;
+  padding: 16px 18px; border: 1.5px solid var(--line); border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.item:hover { border-color: var(--accent); }
+.item input { position: absolute; opacity: 0; pointer-events: none; }
+.box {
+  width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--muted);
+  display: grid; place-items: center; margin-top: 1px; transition: all .15s;
+}
+.box svg { width: 16px; height: 16px; opacity: 0; transition: opacity .15s; }
+.item:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--surface)); }
+.item:has(input:checked) .box { background: var(--accent); border-color: var(--accent); }
+.item:has(input:checked) .box svg { opacity: 1; }
+.item:has(input:focus-visible) { outline: 3px solid var(--eyebrow); outline-offset: 2px; }
+.item p { margin: 0; }
+
+.hint { color: var(--muted); font-size: 15px; margin: 0; }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+button {
+  font-family: var(--font-display); font-weight: 700; font-size: 18px;
+  border-radius: 12px; padding: 14px 26px; cursor: pointer; border: 0;
+}
+button:focus-visible { outline: 3px solid var(--eyebrow); outline-offset: 2px; }
+.primary { background: var(--action); color: #fff; }
+.primary:hover { background: var(--action-hover); }
+.ghost { background: transparent; color: var(--muted); border: 1.5px solid var(--line); }
+.ghost:hover { color: var(--fg); border-color: var(--muted); }
+
+/* result */
+.score { display: flex; align-items: baseline; gap: 10px; font-family: var(--font-display); font-variant-numeric: tabular-nums; }
+.score strong { font-size: clamp(64px, 18vw, 96px); font-weight: 800; line-height: 1; color: var(--accent-strong); }
+.score span { font-size: 22px; color: var(--muted); }
+.score { flex-wrap: wrap; }
+.score em { flex-basis: 100%; font-style: normal; font-family: var(--font-body); font-size: 18px; color: var(--muted); }
+.card { margin: 0; padding: 18px 16px 14px; border: 1.5px solid var(--line); border-radius: 18px; background: color-mix(in srgb, var(--surface) 60%, transparent); display: flex; flex-direction: column; gap: 8px; }
+.card figcaption { font-family: var(--font-display); font-weight: 700; font-size: 17px; color: var(--muted); }
+.card svg { width: 100%; height: auto; display: block; direction: ltr; overflow: visible; }
+.road-base { fill: none; stroke: var(--line); stroke-width: 22; stroke-linecap: round; }
+.road { fill: none; stroke-width: 22; stroke-linecap: butt; opacity: .35; }
+.road.z1 { stroke: #6f6aa8; } .road.z2 { stroke: var(--accent); } .road.z3 { stroke: var(--ok); }
+.road.active { opacity: 1; }
+.road-dash { fill: none; stroke: var(--bg); stroke-width: 2; stroke-dasharray: 10 12; opacity: .7; }
+.zone-label { font-family: var(--font-display); font-weight: 700; font-size: 15px; fill: var(--muted); }
+.zone-label.active { fill: var(--fg); }
+.zone-range { font-family: var(--font-display); font-size: 13px; fill: var(--muted); }
+.end-label { font-family: var(--font-body); font-weight: 600; font-size: 14px; fill: var(--muted); }
+.book { stroke-width: 2; } .book.old { fill: var(--surface); stroke: var(--muted); } .book.new { fill: var(--ok); stroke: var(--ok); }
+.book-spine { stroke: var(--bg); stroke-width: 2; }
+.pin-halo { fill: var(--eyebrow); opacity: .25; }
+.pin-body { fill: var(--eyebrow); stroke: var(--bg); stroke-width: 2; }
+.pin-num { font-family: var(--font-display); font-weight: 800; font-size: 15px; fill: var(--bg); }
+.here rect { fill: var(--fg); }
+.here text { font-family: var(--font-display); font-weight: 700; font-size: 13px; fill: var(--bg); }
+.ring { fill: none; stroke: var(--line); stroke-width: 1; }
+.ring.outer { stroke-width: 1.5; }
+.spoke { stroke: var(--line); stroke-width: 1; }
+.shape { fill: color-mix(in srgb, var(--accent) 35%, transparent); stroke: var(--accent-strong); stroke-width: 2.5; stroke-linejoin: round; }
+.vertex { fill: var(--accent-strong); stroke: var(--bg); stroke-width: 2; }
+.vertex.low { fill: var(--eyebrow); }
+.axis-num { font-family: var(--font-display); font-weight: 800; font-size: 13px; fill: var(--muted); }
+.axis-name { font-family: var(--font-body); font-weight: 600; font-size: 14px; fill: var(--fg); }
+.axis-score { font-family: var(--font-display); font-weight: 700; font-size: 13px; fill: var(--accent-strong); }
+.low-label .axis-name, .low-label .axis-num, .low-label .axis-score { fill: var(--eyebrow); }
+.ring-num { font-family: var(--font-display); font-size: 11px; fill: var(--muted); }
+.legend { margin: 0; color: var(--muted); font-size: 14px; display: flex; gap: 8px; align-items: baseline; }
+.legend .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--eyebrow); flex: none; }
+.callout { border-inline-start: 4px solid var(--eyebrow); padding: 6px 16px; margin: 0; font-size: 19px; }
+/* rulebook viewer */
+.book-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.book-nav button { padding: 12px 18px; font-size: 16px; }
+.book-nav button:disabled { opacity: .35; cursor: default; }
+.dots { display: flex; gap: 8px; }
+.dots button { width: 12px; height: 12px; padding: 0; border-radius: 50%; background: var(--line); }
+.dots button[aria-current="true"] { background: var(--eyebrow); width: 28px; border-radius: 6px; }
+.chapter { display: flex; flex-direction: column; gap: 18px; animation: rise .35s ease both; }
+.chapter .label { color: var(--eyebrow); font-family: var(--font-display); font-weight: 700; font-size: 15px; margin: 0; }
+.chapter h2 { margin-top: -8px; }
+.chapter .sub { color: var(--muted); margin: -6px 0 0; font-size: 19px; }
+.clauses { display: grid; gap: 14px; }
+.clause { display: flex; flex-direction: column; gap: 10px; padding: 18px 18px 16px; border-radius: 16px; border: 1.5px solid #4b44a8; background: #1d1950; }
+.clause.hot { border: 3px solid var(--eyebrow); background: #2a1f4a; }
+.clause .num { font-family: var(--font-display); font-weight: 700; color: var(--eyebrow); font-size: 15px; display: flex; justify-content: space-between; }
+.clause .num .mine { color: var(--ok); font-weight: 600; }
+.clause .old { margin: 0; color: #8f8ac4; text-decoration: line-through; text-decoration-color: var(--eyebrow); text-decoration-thickness: 2px; }
+.clause .new { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 22px; line-height: 1.3; }
+.clause.hot .new .em { color: var(--eyebrow); }
+.clause .tomorrow { margin: 0; padding-top: 10px; border-top: 1px solid #4b44a8; color: #c9c4f0; font-size: 16px; }
+.clause .tomorrow b { color: var(--fg); }
+.chapter-score { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-radius: 14px; background: color-mix(in srgb, var(--eyebrow) 12%, var(--surface)); font-family: var(--font-display); font-weight: 700; }
+.chapter-score strong { color: var(--eyebrow); font-size: 24px; font-variant-numeric: tabular-nums; direction: ltr; }
+@media (min-width: 900px) {
+  body:has(#book:not([hidden])) .wrap { max-width: 1080px; }
+  .clauses { grid-template-columns: repeat(3, 1fr); }
+}
+section[hidden] { display: none !important; }
+section { display: flex; flex-direction: column; gap: 24px; animation: rise .35s ease both; }
+@keyframes rise { from { transform: translateY(8px); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { section, .chapter { animation: none !important; } * { transition: none !important; } }
+</style>
+</head>
+<body>
+<!-- ---------- MARKUP ---------- -->
+<div class="wrap" dir="rtl" lang="he">
+  <div id="progress" hidden>
+    <div class="rail" id="rail"></div>
+  </div>
+  <p class="rail-label" id="railLabel" hidden></p>
+
+  <section id="intro">
+    <div class="head">
+      <p class="eyebrow">האלגוריתם של השינוי</p>
+      <h1>Reality Check: איפה אתם בספר החוקים החדש?</h1>
+    </div>
+    <p class="lead">שש פרדיגמות, שלושה היגדים בכל אחת. סמנו רק את ההיגדים שנכונים היום אצלכם בארגון, לא את מה שמתוכנן. בסוף תקבלו את המיקום שלכם ואת הפרדיגמה שבה כדאי להתחיל.</p>
+    <p class="hint">התשובות נשארות במכשיר שלכם בלבד ולא נשלחות לאף אחד.</p>
+    <div class="actions"><button class="primary" id="start" type="button">מתחילים</button></div>
+  </section>
+
+  <section id="step" hidden>
+    <div class="head">
+      <p class="eyebrow" id="stepEyebrow"></p>
+      <h2 id="stepTitle"></h2>
+      <div class="shift" id="stepShift"></div>
+    </div>
+    <fieldset class="list" id="stepList">
+      <legend>סמנו את מה שנכון אצלכם היום</legend>
+    </fieldset>
+    <p class="hint">אפשר לסמן אחד, כמה, או אף אחד.</p>
+    <div class="actions">
+      <button class="primary" id="next" type="button">המשך</button>
+      <button class="ghost" id="back" type="button">חזרה</button>
+    </div>
+  </section>
+
+  <section id="result" hidden>
+    <div class="head">
+      <p class="eyebrow">התוצאה שלך</p>
+      <h2 id="bandTitle"></h2>
+    </div>
+    <div class="score"><strong id="total">0</strong><span id="maxScore">מתוך 18</span><em id="bandText"></em></div>
+
+    <figure class="card">
+      <figcaption>המסע מהספר הישן לספר החדש</figcaption>
+      <svg id="journey" viewBox="0 0 600 210" role="img" aria-labelledby="journeyDesc">
+        <desc id="journeyDesc"></desc>
+        <path id="road" class="road-base" d="M 560 150 C 470 150, 440 60, 330 70 S 150 160, 40 70"/>
+        <path class="road z1" d="M 560 150 C 470 150, 440 60, 330 70 S 150 160, 40 70"/>
+        <path class="road z2" d="M 560 150 C 470 150, 440 60, 330 70 S 150 160, 40 70"/>
+        <path class="road z3" d="M 560 150 C 470 150, 440 60, 330 70 S 150 160, 40 70"/>
+        <path class="road-dash" d="M 560 150 C 470 150, 440 60, 330 70 S 150 160, 40 70"/>
+        <g id="zoneLabels"></g>
+        <g transform="translate(560 150)">
+          <rect x="-15" y="-34" width="30" height="22" rx="3" class="book old"/>
+          <line x1="0" y1="-34" x2="0" y2="-12" class="book-spine"/>
+        </g>
+        <text x="560" y="182" class="end-label" text-anchor="middle">הספר הישן</text>
+        <g transform="translate(40 70)">
+          <rect x="-15" y="-34" width="30" height="22" rx="3" class="book new"/>
+          <line x1="0" y1="-34" x2="0" y2="-12" class="book-spine"/>
+        </g>
+        <text x="40" y="102" class="end-label" text-anchor="middle">הספר החדש</text>
+        <g id="pin">
+          <circle r="18" class="pin-halo"/>
+          <path d="M0 0 C -11 -14, -14 -20, -14 -27 A 14 14 0 1 1 14 -27 C 14 -20, 11 -14, 0 0 Z" class="pin-body"/>
+          <text y="-22" class="pin-num" text-anchor="middle" id="pinNum">0</text>
+          <g class="here">
+            <rect x="-34" y="-68" width="68" height="24" rx="12"/>
+            <text y="-51" text-anchor="middle">אני כאן</text>
+          </g>
+        </g>
+      </svg>
+    </figure>
+
+    <figure class="card">
+      <figcaption>מפת הפרדיגמות שלך</figcaption>
+      <svg id="radar" viewBox="0 0 480 400" role="img" aria-labelledby="radarDesc">
+        <desc id="radarDesc"></desc>
+      </svg>
+      <p class="legend"><span class="dot"></span> כל קודקוד הוא פרדיגמה. ככל שהצורה מלאה יותר, כך יותר מחוקי המשחק החדשים כבר קורים אצלך.</p>
+    </figure>
+
+    <p class="callout" id="weakest"></p>
+    <div class="actions">
+      <button class="primary" id="openBook" type="button">לספר החוקים החדש</button>
+      <button class="ghost" id="restart" type="button">להתחיל מחדש</button>
+    </div>
+  </section>
+
+  <section id="book" hidden>
+    <div class="head">
+      <p class="eyebrow">האלגוריתם של השינוי</p>
+      <h1>ספר החוקים החדש</h1>
+      <p class="lead">שישה פרקים, שלושה סעיפים בכל פרק: מה היה החוק הישן, מה החוק החדש, ומה אפשר לעשות כבר מחר בבוקר.</p>
+    </div>
+    <div class="book-nav">
+      <button class="ghost" id="prevCh" type="button">→ הקודם</button>
+      <div class="dots" id="dots" role="group" aria-label="פרקים"></div>
+      <button class="primary" id="nextCh" type="button">הבא ←</button>
+    </div>
+    <article class="chapter" id="chapter" aria-live="polite"></article>
+    <div class="actions"><button class="ghost" id="closeBook" type="button">חזרה לתוצאה שלי</button></div>
+  </section>
+</div>
+
+<!-- ---------- CONTENT ----------
+  paradigms[]: name, short (תווית ברדאר), from → to, items (3 היגדים לשאלון),
+               chapter.sub + chapter.clauses (old / new / tomorrow, אופציונלי: hot + highlight)
+  bands[]: טווחי ציון ותוצאה
+-->
+<script type="application/json" id="content">
+{
+  "meta": {
+    "version": "1.0.0",
+    "title": "Reality Check: חוקי המשחק החדשים",
+    "maxPerParadigm": 3
+  },
+  "bands": [
+    {
+      "min": 0,
+      "max": 6,
+      "title": "משחקים לפי הספר הישן",
+      "text": "הכלים חדשים, התפיסה עדיין לא."
+    },
+    {
+      "min": 7,
+      "max": 12,
+      "title": "באמצע המעבר",
+      "text": "יש שינוי, אבל הוא עדיין לא שיטתי."
+    },
+    {
+      "min": 13,
+      "max": 18,
+      "title": "כבר כותבים את הספר החדש",
+      "text": "השאלה עכשיו היא איך מובילים את זה הלאה."
+    }
+  ],
+  "paradigms": [
+    {
+      "name": "מי שיודע לשאול מנצח",
+      "short": "לשאול שאלות",
+      "from": "הידע נמצא אצל המומחים",
+      "to": "מקור הכוח עובר מתשובות לשאלות",
+      "items": [
+        "הידע הקריטי של האנשים המרכזיים אצלנו זמין גם כ־skill, סוכן או מאגר, ולא רק בראש שלהם",
+        "בגיוס ובקידום אנחנו מעריכים בפועל את היכולת לשאול ולנסח בעיה, לא רק את הידע",
+        "כשמישהו בצוות שלי עוזב, הידע שלו לא הולך איתו"
+      ],
+      "chapter": {
+        "sub": "מקור הכוח הארגוני עובר מתשובות לשאלות",
+        "clauses": [
+          {
+            "old": "הידע יושב בראש של המומחה",
+            "new": "הידע של העובדים המרכזיים מוחזק בסוכן או ב־skill",
+            "tomorrow": "מה הידע שאסור לנו לאבד?"
+          },
+          {
+            "old": "ידע הוא כוח, ושומרים אותו",
+            "new": "מתחזקים מוח ארגוני, \"המוח השני\"",
+            "tomorrow": "מי אחראי לעדכן אותו?"
+          },
+          {
+            "old": "מגייסים את מי שיודע הכי הרבה",
+            "new": "מגייסים לפי היכולת לשאול ולנסח בעיה",
+            "tomorrow": "שאלת ראיון אחת חדשה"
+          }
+        ]
+      }
+    },
+    {
+      "name": "מאופטימיזציה להמצאה מחדש",
+      "short": "המצאה מחדש",
+      "from": "Doing things better",
+      "to": "Doing better things",
+      "items": [
+        "לפחות יוזמה אחת שלנו השנה ייתרה תהליך, ולא רק קיצרה אותו",
+        "כשמגיעה בקשה לכלי AI, השאלה הראשונה אצלנו היא \"מה הבעיה?\" ולא \"איזה כלי?\"",
+        "יש לנו לפחות תהליך ליבה אחד שעבר רידיזיין מאפס, ולא רק אוטומציה של הקיים"
+      ],
+      "chapter": {
+        "sub": "Doing better things במקום Doing things better",
+        "clauses": [
+          {
+            "old": "משפרים את התהליך הקיים",
+            "new": "שואלים קודם אם התהליך צריך להתקיים",
+            "tomorrow": "איזה תהליך היינו מוחקים?"
+          },
+          {
+            "old": "מתחילים מהכלי",
+            "new": "מתחילים מהבעיה: חשיבה עיצובית לפני טכנולוגיה",
+            "tomorrow": "\"מה הבעיה?\" לפני \"איזה כלי?\""
+          },
+          {
+            "old": "אוטומציה של הקיים",
+            "new": "רידיזיין לתהליכי ליבה מאפס",
+            "tomorrow": "תהליך ליבה אחד לפירוק"
+          }
+        ]
+      }
+    },
+    {
+      "name": "מביצוע משימות לתזמור סוכנים",
+      "short": "תזמור סוכנים",
+      "from": "צוותים אנושיים, עבודה טורית",
+      "to": "צוותים משולבים של אנשים וסוכנים",
+      "items": [
+        "שינינו בפועל את חלוקת העבודה בצוות בגלל סוכן, ולא רק הוספנו כלי",
+        "ברור אצלנו מי אחראי על הסוכנים: מי מגדיר אותם, מי בודק את התוצרים ומי מתקן",
+        "המנהלים אצלנו יודעים לתכנן עבודה שמשלבת אנשים וסוכנים, ולא רק לחלק משימות לאנשים"
+      ],
+      "chapter": {
+        "sub": "מצוותים אנושיים לצוותים משולבים של אנשים וסוכנים",
+        "clauses": [
+          {
+            "old": "עובד מבצע משימות",
+            "new": "עובד מתזמר סוכנים",
+            "tomorrow": "מה הצוות שלי מפסיק לעשות בעצמו?"
+          },
+          {
+            "old": "צוות הוא אנשים",
+            "new": "צוות משולב של אנשים וסוכנים, עם בעלות ברורה",
+            "tomorrow": "מי הבעלים של כל סוכן?"
+          },
+          {
+            "old": "המנהל מחלק משימות",
+            "new": "המנהל מתכנן זרימת עבודה של אדם ומכונה",
+            "tomorrow": "איך נראה יום עבודה משולב?"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Scale Without Mass",
+      "short": "Scale Without Mass",
+      "from": "כדי לגדול פי 2 צריך פי 2 עובדים",
+      "to": "ארגון רזה עם אימפקט של תאגיד",
+      "items": [
+        "כשהבקלוג גדל, התגובה הראשונה אצלנו היא \"איך מגדילים יכולת\" ולא \"כמה תקנים חסרים\"",
+        "בתוכנית העבודה לשנה הבאה יש יעדי צמיחה שמבוססים על אותו כוח אדם",
+        "יש לנו לפחות צוות קטן אחד שמייצר תפוקה שבעבר דרשה צוות גדול בהרבה"
+      ],
+      "chapter": {
+        "sub": "ארגון רזה יכול לייצר אימפקט של תאגיד ענק",
+        "clauses": [
+          {
+            "old": "הבקלוג גדל, מבקשים תקנים",
+            "new": "הבקלוג גדל, מגדילים יכולת",
+            "tomorrow": "הבקשה הבאה לתקן: מה החלופה?"
+          },
+          {
+            "old": "צמיחה דרך גיוס",
+            "new": "צמיחה עם אותו כוח אדם: ממינוף משאבים למינוף יכולות",
+            "tomorrow": "יעד צמיחה בלי ראש נוסף"
+          },
+          {
+            "old": "AI כדי לקצץ",
+            "new": "AI כדי לצמוח",
+            "tomorrow": "איזה מסר שומעים העובדים?",
+            "hot": true,
+            "highlight": "כדי לצמוח"
+          }
+        ]
+      }
+    },
+    {
+      "name": "מחתירה לשלמות למהירות למידה",
+      "short": "מהירות למידה",
+      "from": "חודשים של תכנון להשקה מושלמת",
+      "to": "Fail faster, למידה כערך",
+      "items": [
+        "לפחות פעם אחת השנה האפיון נכתב אחרי שהיה מוצר ראשוני ביד",
+        "אצלנו לגיטימי להשיק משהו לא מושלם ולשפר אותו תוך כדי עבודה",
+        "הזמן מרעיון לאב טיפוס ראשון אצלנו נמדד בימים, לא בחודשים"
+      ],
+      "chapter": {
+        "sub": "Fail faster ולמידה כערך",
+        "clauses": [
+          {
+            "old": "אפיון, אחר כך פיתוח, אחר כך מוצר",
+            "new": "קודם מוצר ראשוני, ואז האפיון נכתב עליו",
+            "tomorrow": "להגיע לעסק עם אב טיפוס"
+          },
+          {
+            "old": "משיקים כשזה מושלם",
+            "new": "MVP כברירת מחדל",
+            "tomorrow": "מה אפשר להשיק בעוד שבועיים?"
+          },
+          {
+            "old": "כישלון מחפש אשמים",
+            "new": "כישלון מהיר הוא למידה",
+            "tomorrow": "תחקיר אחד בלי אשמים"
+          }
+        ]
+      }
+    },
+    {
+      "name": "כולם הופכים ליצרנים",
+      "short": "כולם יצרנים",
+      "from": "רק בעלי מקצוע יוצרים פתרונות",
+      "to": "דמוקרטיזציה של הפיתוח",
+      "items": [
+        "יש לנו מדיניות ברורה שמאפשרת לאנשים מחוץ לגוף הפיתוח לבנות כלים ופתרונות",
+        "קיבלנו השנה פתרון או כלי שהעסק בנה לבד, ושילבנו אותו, לא חסמנו אותו",
+        "אנחנו כבר חושבים איך הלקוחות שלנו ישתמשו בנתונים שלנו כדי לבנות לעצמם מוצרים"
+      ],
+      "chapter": {
+        "sub": "דמוקרטיזציה של הפיתוח",
+        "clauses": [
+          {
+            "old": "רק גוף הפיתוח מפתח",
+            "new": "מערכות המידע מאפשרות, וכולם מפתחים",
+            "tomorrow": "מדיניות פיתוח לא מקצועי"
+          },
+          {
+            "old": "העסק מחכה בתור לפיתוח",
+            "new": "העסק מביא פתרונות מוכנים: משלבים, לא חוסמים",
+            "tomorrow": "מי כבר בנה משהו לבד?"
+          },
+          {
+            "old": "אנחנו בונים מוצרים ללקוח",
+            "new": "הלקוח בונה לעצמו על הנתונים שלנו",
+            "tomorrow": "אילו נתונים נפתח ללקוחות?"
+          }
+        ]
+      }
+    }
+  ]
+}
+</script>
+
+<!-- ---------- DOMAIN ---------- -->
+<script id="rc-domain">
+// Domain: pure functions only. No DOM, no window, no storage, no network.
+// Input is the content spec + answers; output is plain data. Tested directly in Node.
+globalThis.RCDomain = (() => {
+  "use strict";
+
+  const emptyAnswers = (paradigms) => paradigms.map((p) => p.items.map(() => false));
+
+  const perParadigm = (answers) => answers.map((a) => a.filter(Boolean).length);
+
+  const total = (per) => per.reduce((s, n) => s + n, 0);
+
+  const maxScore = (paradigms) => paradigms.reduce((s, p) => s + p.items.length, 0);
+
+  const bandFor = (score, bands) => {
+    const band = bands.find((b) => score >= b.min && score <= b.max);
+    if (!band) throw new RangeError(`No band covers score ${score}`);
+    return band;
+  };
+
+  // Zone edges on the journey road, as fractions 0..1, sitting between whole scores.
+  const bandEdges = (bands, max) =>
+    [0, ...bands.slice(0, -1).map((b) => (b.max + 0.5) / max), 1];
+
+  const weakest = (per) => {
+    const min = Math.min(...per);
+    const indices = per.flatMap((n, i) => (n === min ? [i] : []));
+    return { min, indices, allEqual: indices.length === per.length };
+  };
+
+  const weakestMessage = (per, paradigms) => {
+    const w = weakest(per);
+    const full = paradigms[0].items.length;
+    if (w.allEqual) {
+      return w.min === full
+        ? "סימנת את כל ההיגדים. השאלה עכשיו היא איך מובילים את זה הלאה."
+        : "כל הפרדיגמות אצלך באותה רמה. בחר/י אחת והתחל/י ממנה.";
+    }
+    const names = w.indices.map((i) => paradigms[i].name).join(", ");
+    return `הכי מעט "כן" קיבלת ב: ${names}. שם בדיוק מתחיל האלגוריתם שלך.`;
+  };
+
+  // Which rulebook chapter to open first: the first weakest paradigm.
+  const startChapter = (per) => weakest(per).indices[0];
+
+  // Point on a radar with `count` spokes, first spoke pointing up.
+  const radarPoint = (i, r, count, cx, cy) => {
+    const a = ((-90 + (i * 360) / count) * Math.PI) / 180;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+
+  // Split a clause's new rule around its highlight, if the highlight occurs in it.
+  const splitHighlight = (text, highlight) => {
+    const at = highlight ? text.indexOf(highlight) : -1;
+    if (at < 0) return [text];
+    return [text.slice(0, at), highlight, text.slice(at + highlight.length)];
+  };
+
+  const result = (answers, content) => {
+    const per = perParadigm(answers);
+    const score = total(per);
+    return {
+      per,
+      score,
+      max: maxScore(content.paradigms),
+      band: bandFor(score, content.bands),
+      weakest: weakest(per),
+      message: weakestMessage(per, content.paradigms),
+    };
+  };
+
+  return Object.freeze({
+    emptyAnswers, perParadigm, total, maxScore, bandFor, bandEdges,
+    weakest, weakestMessage, startChapter, radarPoint, splitHighlight, result,
+  });
+})();
+</script>
+
+<!-- ---------- UI ---------- -->
+<script id="rc-ui">
+// UI adapter: reads the content spec, asks the domain for answers, draws the DOM.
+// All state is in memory. Nothing is stored or sent anywhere.
+(() => {
+  "use strict";
+  const D = globalThis.RCDomain;
+  const CONTENT = JSON.parse(document.getElementById("content").textContent);
+  const PARADIGMS = CONTENT.paradigms;
+  const BANDS = CONTENT.bands;
+  const MAX = D.maxScore(PARADIGMS);
+
+  const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const $ = (id) => document.getElementById(id);
+
+  let answers = D.emptyAnswers(PARADIGMS);
+  let step = 0;
+  let chapter = 0;
+  let pinAnim = 0;
+
+  const el = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  };
+  const svgEl = (tag, attrs, text) => {
+    const n = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (text != null) n.textContent = text;
+    return n;
+  };
+
+  // ---------- screens ----------
+  function show(id) {
+    ["intro", "step", "result", "book"].forEach((s) => ($(s).hidden = s !== id));
+    $("progress").hidden = id === "intro" || id === "book";
+    $("railLabel").hidden = id !== "step";
+    window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
+  }
+
+  // ---------- questionnaire ----------
+  function renderRail() {
+    [...$("rail").children].forEach((n, i) => {
+      n.className = i < step ? "done" : i === step ? "now" : "";
+    });
+    $("railLabel").textContent = `פרדיגמה ${step + 1} מתוך ${PARADIGMS.length}`;
+  }
+
+  function renderStep() {
+    const p = PARADIGMS[step];
+    $("stepEyebrow").textContent = `#${step + 1}`;
+    $("stepTitle").textContent = p.name;
+    const arrow = el("span", "", "←");
+    arrow.setAttribute("aria-label", "אל");
+    $("stepShift").replaceChildren(el("span", "", p.from), arrow, el("b", "", p.to));
+
+    const list = $("stepList");
+    list.querySelectorAll(".item").forEach((n) => n.remove());
+    p.items.forEach((text, j) => {
+      const id = `q${step}-${j}`;
+      const label = el("label", "item");
+      label.htmlFor = id;
+      label.innerHTML = `<input type="checkbox" id="${id}"><span class="box">${CHECK}</span><p></p>`;
+      label.querySelector("p").textContent = text;
+      const input = label.querySelector("input");
+      const at = step;
+      input.checked = answers[at][j];
+      input.addEventListener("change", () => { answers[at][j] = input.checked; });
+      list.appendChild(label);
+    });
+    $("back").hidden = step === 0;
+    $("next").textContent = step === PARADIGMS.length - 1 ? "לתוצאה שלי" : "המשך";
+    renderRail();
+  }
+
+  // ---------- result ----------
+  function renderResult() {
+    const r = D.result(answers, CONTENT);
+    $("total").textContent = r.score;
+    $("maxScore").textContent = `מתוך ${r.max}`;
+    $("bandTitle").textContent = r.band.title;
+    $("bandText").textContent = r.band.text;
+    drawJourney(r);
+    drawRadar(r);
+    $("weakest").textContent = r.message;
+  }
+
+  function drawJourney(r) {
+    const road = $("road");
+    const L = road.getTotalLength();
+    const edges = D.bandEdges(BANDS, MAX);
+    document.querySelectorAll("#journey .road:not(.road-base)").forEach((p, i) => {
+      const a = edges[i] * L, b = edges[i + 1] * L;
+      p.setAttribute("stroke-dasharray", `0 ${a} ${b - a} ${L}`);
+      p.classList.toggle("active", BANDS[i] === r.band);
+    });
+
+    const labels = $("zoneLabels");
+    labels.replaceChildren();
+    const offsets = [36, 44, 44];
+    BANDS.forEach((b, i) => {
+      const mid = road.getPointAtLength(((edges[i] + edges[i + 1]) / 2) * L);
+      const y = mid.y + offsets[i];
+      labels.appendChild(svgEl("text", { x: mid.x, y, "text-anchor": "middle", class: "zone-label" + (b === r.band ? " active" : "") }, b.title));
+      labels.appendChild(svgEl("text", { x: mid.x, y: y + 17, "text-anchor": "middle", class: "zone-range" }, `${b.min}–${b.max}`));
+    });
+
+    $("journeyDesc").textContent = `ציון ${r.score} מתוך ${r.max}: ${r.band.title}`;
+    const pin = $("pin");
+    const target = r.score / r.max;
+    const place = (t) => {
+      const pt = road.getPointAtLength(t * L);
+      pin.setAttribute("transform", `translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)})`);
+      $("pinNum").textContent = Math.round(t * r.max);
+    };
+    cancelAnimationFrame(pinAnim);
+    if (reduceMotion) { place(target); return; }
+    const start = performance.now(), dur = 1400;
+    const tick = (now) => {
+      const k = Math.min(1, (now - start) / dur);
+      place(target * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) pinAnim = requestAnimationFrame(tick);
+    };
+    place(0);
+    pinAnim = requestAnimationFrame(tick);
+  }
+
+  function drawRadar(r) {
+    const svg = $("radar");
+    [...svg.children].forEach((c) => { if (c.tagName !== "desc") c.remove(); });
+    const n = PARADIGMS.length, cx = 240, cy = 200, R = 125;
+    const full = PARADIGMS[0].items.length;
+    const pt = (i, rad) => D.radarPoint(i, rad, n, cx, cy);
+    const poly = (rad) => PARADIGMS.map((_, i) => pt(i, rad).join(",")).join(" ");
+
+    for (let lv = 1; lv <= full; lv++) {
+      svg.appendChild(svgEl("polygon", { points: poly((R * lv) / full), class: "ring" + (lv === full ? " outer" : "") }));
+      svg.appendChild(svgEl("text", { x: cx + 4, y: cy - (R * lv) / full + 12, class: "ring-num" }, lv));
+    }
+    PARADIGMS.forEach((_, i) => {
+      const [x, y] = pt(i, R);
+      svg.appendChild(svgEl("line", { x1: cx, y1: cy, x2: x, y2: y, class: "spoke" }));
+    });
+
+    const pts = r.per.map((v, i) => pt(i, (Math.max(v, 0.12) * R) / full));
+    const shape = svgEl("polygon", { points: pts.map((p) => p.join(",")).join(" "), class: "shape" });
+    if (!reduceMotion) {
+      shape.style.transformOrigin = `${cx}px ${cy}px`;
+      shape.animate([{ transform: "scale(0)" }, { transform: "scale(1)" }], { duration: 900, easing: "cubic-bezier(.2,.8,.2,1)" });
+    }
+    svg.appendChild(shape);
+
+    r.per.forEach((v, i) => {
+      const low = !r.weakest.allEqual && r.weakest.indices.includes(i);
+      const [x, y] = pts[i];
+      svg.appendChild(svgEl("circle", { cx: x, cy: y, r: 6, class: "vertex" + (low ? " low" : "") }));
+      const [lx, ly] = pt(i, R + 26);
+      const side = Math.abs(lx - cx) < 5 ? "middle" : lx > cx ? "start" : "end";
+      const top = ly < cy - 5, bottom = ly > cy + 5 && side === "middle";
+      const baseY = top && side === "middle" ? ly - 30 : bottom ? ly + 6 : ly - 12;
+      const g = svgEl("g", { class: low ? "low-label" : "" });
+      g.appendChild(svgEl("text", { x: lx, y: baseY, "text-anchor": side, class: "axis-num" }, `#${i + 1}`));
+      g.appendChild(svgEl("text", { x: lx, y: baseY + 17, "text-anchor": side, class: "axis-name" }, PARADIGMS[i].short));
+      g.appendChild(svgEl("text", { x: lx, y: baseY + 34, "text-anchor": side, class: "axis-score" }, `${v}/${full}`));
+      svg.appendChild(g);
+    });
+
+    $("radarDesc").textContent = PARADIGMS.map((p, i) => `${p.name}: ${r.per[i]} מתוך ${full}`).join(". ");
+  }
+
+  // ---------- rulebook ----------
+  function renderChapter() {
+    const p = PARADIGMS[chapter], c = p.chapter;
+    const art = $("chapter");
+    art.replaceChildren();
+    art.style.animation = "none"; void art.offsetWidth; art.style.animation = "";
+    art.append(el("p", "label", `#${chapter + 1} · ספר החוקים, פרק ${chapter + 1}`), el("h2", "", p.name), el("p", "sub", c.sub));
+
+    const grid = el("div", "clauses");
+    c.clauses.forEach((cl, j) => {
+      const card = el("div", "clause" + (cl.hot ? " hot" : ""));
+      const num = el("div", "num");
+      num.append(el("span", "", `סעיף ${chapter + 1}.${j + 1}`));
+      if (answers[chapter][j]) num.append(el("span", "mine", "✓ נכון אצלך"));
+      const nw = el("p", "new");
+      const parts = D.splitHighlight(cl.new, cl.highlight);
+      if (parts.length === 3) nw.append(parts[0], el("span", "em", parts[1]), parts[2]);
+      else nw.textContent = cl.new;
+      const tm = el("p", "tomorrow");
+      tm.append(el("b", "", "מחר בבוקר: "), cl.tomorrow);
+      card.append(num, el("p", "old", cl.old), nw, tm);
+      grid.append(card);
+    });
+
+    const mine = D.perParadigm(answers)[chapter];
+    const score = el("div", "chapter-score");
+    score.append(el("span", "", "כמה מהסעיפים כבר נכונים אצלך?"), el("strong", "", `${mine}/${c.clauses.length}`));
+    art.append(grid, score);
+
+    [...$("dots").children].forEach((d, i) => d.setAttribute("aria-current", i === chapter ? "true" : "false"));
+    $("prevCh").disabled = chapter === 0;
+    $("nextCh").disabled = chapter === PARADIGMS.length - 1;
+  }
+
+  function goChapter(i) {
+    if (i < 0 || i >= PARADIGMS.length || i === chapter) return;
+    chapter = i;
+    renderChapter();
+  }
+
+  // ---------- wiring ----------
+  PARADIGMS.forEach(() => $("rail").appendChild(document.createElement("span")));
+  PARADIGMS.forEach((_, i) => {
+    const d = el("button");
+    d.type = "button";
+    d.setAttribute("aria-label", `פרק ${i + 1}`);
+    d.addEventListener("click", () => goChapter(i));
+    $("dots").appendChild(d);
+  });
+
+  $("start").addEventListener("click", () => { step = 0; renderStep(); show("step"); });
+  $("next").addEventListener("click", () => {
+    if (step < PARADIGMS.length - 1) { step++; renderStep(); show("step"); }
+    else { renderResult(); show("result"); }
+  });
+  $("back").addEventListener("click", () => { if (step > 0) { step--; renderStep(); show("step"); } });
+  $("prevCh").addEventListener("click", () => goChapter(chapter - 1));
+  $("nextCh").addEventListener("click", () => goChapter(chapter + 1));
+  // RTL: right arrow goes back, left arrow goes forward.
+  document.addEventListener("keydown", (e) => {
+    if ($("book").hidden) return;
+    if (e.key === "ArrowLeft") goChapter(chapter + 1);
+    if (e.key === "ArrowRight") goChapter(chapter - 1);
+  });
+  let touchX = null;
+  $("chapter").addEventListener("touchstart", (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  $("chapter").addEventListener("touchend", (e) => {
+    if (touchX == null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    touchX = null;
+    if (Math.abs(dx) > 50) goChapter(chapter + (dx > 0 ? 1 : -1));
+  });
+  $("openBook").addEventListener("click", () => {
+    chapter = D.startChapter(D.perParadigm(answers));
+    renderChapter();
+    show("book");
+  });
+  $("closeBook").addEventListener("click", () => show("result"));
+  $("restart").addEventListener("click", () => {
+    answers = D.emptyAnswers(PARADIGMS);
+    step = 0;
+    show("intro");
+  });
+})();
+</script>
+</body>
+</html>

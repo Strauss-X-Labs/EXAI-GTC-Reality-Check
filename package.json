@@ -1,0 +1,18 @@
+{
+  "name": "reality-check",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reality Check: חוקי המשחק החדשים. כלי סדנה בקובץ HTML אחד.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "test:e2e": "playwright test",
+    "test:all": "npm test && npm run test:e2e",
+    "open": "node -e \"import('node:child_process').then(c=>c.exec((process.platform==='darwin'?'open':process.platform==='win32'?'start':'xdg-open')+' index.html'))\""
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "@playwright/test": "^1.48.0"
+  }
+}
