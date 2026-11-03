@@ -1,21 +1,13 @@
 // End to end: "how do I compare with everyone", against the real Code.gs running as a mock backend.
 import { test, expect } from "@playwright/test";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
-import { html, content, config, loadAppsScript } from "./_source.mjs";
+import { content, config, loadAppsScript, variantUrl } from "./_source.mjs";
 
 const ENDPOINT = "https://script.google.com/macros/s/TEST_DEPLOYMENT_ID/exec";
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 const V = content.meta.version;
 
-// A copy of the shipped file with only the endpoint filled in.
-const dir = mkdtempSync(join(tmpdir(), "rc-e2e-"));
-const configured = html.replace(/"endpoint":\s*""/, `"endpoint": "${ENDPOINT}"`);
-if (configured === html) throw new Error("Could not set the endpoint in the test copy");
-writeFileSync(join(dir, "index.html"), configured);
-const URL_ = pathToFileURL(join(dir, "index.html")).href;
+// A copy of the shipped file pointing at a mocked endpoint. Nothing reaches the real Apps Script.
+const URL_ = variantUrl(ENDPOINT);
 
 const dev = (i) => i.toString(16).padStart(32, "f");
 

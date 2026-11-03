@@ -2,6 +2,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 export const HTML_PATH = fileURLToPath(new URL("../index.html", import.meta.url));
 export const html = readFileSync(HTML_PATH, "utf8");
@@ -57,4 +61,13 @@ export function loadAppsScript({ rows = [], cache = {} } = {}) {
   vm.runInNewContext(appsScriptSource + "\n;globalThis.__api = { doPost, doGet, setup, validate, summarize, CONFIG, HEADER };", sandbox);
   const post = (body) => JSON.parse(sandbox.__api.doPost({ postData: { contents: typeof body === "string" ? body : JSON.stringify(body) } }).text);
   return { ...sandbox.__api, post, sheet, cache };
+}
+
+// A copy of the shipped file with a different endpoint ("" = local only). Returns a file:// URL.
+export function variantUrl(endpoint) {
+  const out = html.replace(/"endpoint":\s*"[^"]*"/, `"endpoint": "${endpoint}"`);
+  if (!/"endpoint":/.test(out)) throw new Error("No endpoint in #config");
+  const dir = mkdtempSync(join(tmpdir(), "rc-e2e-"));
+  writeFileSync(join(dir, "index.html"), out);
+  return pathToFileURL(join(dir, "index.html")).href;
 }
