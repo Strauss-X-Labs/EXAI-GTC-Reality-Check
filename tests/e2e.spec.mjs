@@ -131,3 +131,11 @@ for (const screen of ["intro", "step", "result", "book"]) {
     expect(serious.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 }
+
+test("without an endpoint there is no compare button and nothing is stored", async ({ page }) => {
+  await page.goto(URL_);
+  await expect(page.locator("#privacyLocal")).toBeVisible();
+  await answer(page, [1, 1, 1, 1, 1, 1]);
+  await expect(page.locator("#compare")).toBeHidden();
+  expect(await page.evaluate(() => localStorage.length)).toBe(0);
+});

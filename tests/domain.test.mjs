@@ -13,7 +13,8 @@ const answersFrom = (per) => per.map((n) => Array.from({ length: K }, (_, j) => 
 describe("domain is a frozen pure API", () => {
   test("exposes the documented functions", () => {
     for (const fn of ["emptyAnswers", "perParadigm", "total", "maxScore", "bandFor", "bandEdges",
-      "weakest", "weakestMessage", "startChapter", "radarPoint", "splitHighlight", "result"]) {
+      "weakest", "weakestMessage", "startChapter", "radarPoint", "splitHighlight", "result",
+      "encodeAnswers", "decodeAnswers", "averagePerParadigm", "compare"]) {
       assert.equal(typeof D[fn], "function", fn);
     }
     assert.ok(Object.isFrozen(D));
@@ -137,5 +138,51 @@ describe("result", () => {
     assert.equal(r.score, 10);
     assert.equal(r.max, 18);
     assert.equal(r.band.title, "באמצע המעבר");
+  });
+});
+
+describe("wire format", () => {
+  test("encode and decode round-trip", () => {
+    const a = answersFrom([1, 2, 0, 3, 1, 2]);
+    const bits = D.encodeAnswers(a);
+    assert.equal(bits.length, MAX);
+    assert.match(bits, /^[01]+$/);
+    assert.deepEqual(plain(D.decodeAnswers(bits, content.paradigms)), a);
+  });
+
+  test("decode rejects anything that does not fit the spec", () => {
+    for (const bad of ["", "01", "2".repeat(MAX), null, 5]) {
+      assert.throws(() => D.decodeAnswers(bad, content.paradigms), (e) => e.name === "RangeError");
+    }
+  });
+});
+
+describe("compare with everyone", () => {
+  test("item averages roll up per paradigm", () => {
+    const avg = Array(MAX).fill(0.5);
+    assert.deepEqual(plain(D.averagePerParadigm(avg, content.paradigms)), Array(N).fill(1.5));
+  });
+
+  test("averages of the wrong length fail loudly", () => {
+    assert.throws(() => D.averagePerParadigm([0.5], content.paradigms), (e) => e.name === "RangeError");
+  });
+
+  test("above, below and the total", () => {
+    const r = D.compare([3, 0, 2, 2, 2, 2], [1.5, 1.5, 2, 2, 2, 2], content.paradigms);
+    assert.deepEqual(plain(r.above), [content.paradigms[0].short]);
+    assert.deepEqual(plain(r.below), [content.paradigms[1].short]);
+    assert.equal(r.myTotal, 11);
+    assert.equal(r.avgTotal, 11);
+    assert.match(r.message, /בדיוק בממוצע/);
+  });
+
+  test("message direction", () => {
+    assert.match(D.compare(Array(N).fill(3), Array(N).fill(1), content.paradigms).message, /מעל הממוצע/);
+    assert.match(D.compare(Array(N).fill(0), Array(N).fill(1), content.paradigms).message, /מתחת לממוצע/);
+  });
+
+  test("the comparison never judges", () => {
+    const m = D.compare(Array(N).fill(0), Array(N).fill(3), content.paradigms).message;
+    assert.doesNotMatch(m, /נכשל|גרוע|חלש|!/);
   });
 });

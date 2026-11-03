@@ -5,7 +5,7 @@
   Reality Check: חוקי המשחק החדשים · v1.0.0
   קובץ יחיד, בלי build, בלי שרת, בלי איסוף נתונים.
   לעריכת תוכן: רק בלוק ה-JSON (id="content"). לא צריך לגעת בקוד.
-  מבנה (מונולית מודולרי בקובץ אחד): STYLE → MARKUP → CONTENT (spec) → DOMAIN (טהור) → UI (adapter)
+  מבנה (מונולית מודולרי בקובץ אחד): STYLE → MARKUP → CONTENT (spec) → CONFIG → DOMAIN (טהור) → NET (adapter) → UI (adapter)
   ראו ARCHITECTURE.md
 -->
 <meta charset="utf-8">
@@ -139,6 +139,15 @@ button:focus-visible { outline: 3px solid var(--eyebrow); outline-offset: 2px; }
 .legend { margin: 0; color: var(--muted); font-size: 14px; display: flex; gap: 8px; align-items: baseline; }
 .legend .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--eyebrow); flex: none; }
 .callout { border-inline-start: 4px solid var(--eyebrow); padding: 6px 16px; margin: 0; font-size: 19px; }
+/* compare with everyone */
+.compare { display: flex; flex-direction: column; gap: 10px; }
+.compare .status { margin: 0; color: var(--muted); font-size: 16px; min-height: 1.5em; }
+.compare .status.ok { color: var(--fg); }
+.shape.avg { fill: none; stroke: var(--ok); stroke-width: 2.5; stroke-dasharray: 7 6; }
+.vertex.avg { fill: var(--ok); stroke: var(--bg); stroke-width: 2; }
+.axis-avg { font-family: var(--font-display); font-weight: 700; font-size: 12px; fill: var(--ok); }
+.legend .dot.me { background: var(--accent-strong); }
+.legend .dot.all { background: var(--ok); }
 /* rulebook viewer */
 .book-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .book-nav button { padding: 12px 18px; font-size: 16px; }
@@ -166,7 +175,7 @@ button:focus-visible { outline: 3px solid var(--eyebrow); outline-offset: 2px; }
   body:has(#book:not([hidden])) .wrap { max-width: 1080px; }
   .clauses { grid-template-columns: repeat(3, 1fr); }
 }
-section[hidden] { display: none !important; }
+[hidden] { display: none !important; }
 section { display: flex; flex-direction: column; gap: 24px; animation: rise .35s ease both; }
 @keyframes rise { from { transform: translateY(8px); opacity: .4; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { section, .chapter { animation: none !important; } * { transition: none !important; } }
@@ -186,7 +195,8 @@ section { display: flex; flex-direction: column; gap: 24px; animation: rise .35s
       <h1>Reality Check: איפה אתם בספר החוקים החדש?</h1>
     </div>
     <p class="lead">שש פרדיגמות, שלושה היגדים בכל אחת. סמנו רק את ההיגדים שנכונים היום אצלכם בארגון, לא את מה שמתוכנן. בסוף תקבלו את המיקום שלכם ואת הפרדיגמה שבה כדאי להתחיל.</p>
-    <p class="hint">התשובות נשארות במכשיר שלכם בלבד ולא נשלחות לאף אחד.</p>
+    <p class="hint" id="privacyLocal">התשובות נשארות במכשיר שלכם בלבד ולא נשלחות לאף אחד.</p>
+    <p class="hint" id="privacyCompare" hidden>התשובות נשארות במכשיר שלכם. בסוף תוכלו לבחור אם לשלוח אותן, בעילום שם, כדי לראות איך אתם למול כל המשיבים.</p>
     <div class="actions"><button class="primary" id="start" type="button">מתחילים</button></div>
   </section>
 
@@ -247,13 +257,19 @@ section { display: flex; flex-direction: column; gap: 24px; animation: rise .35s
 
     <figure class="card">
       <figcaption>מפת הפרדיגמות שלך</figcaption>
-      <svg id="radar" viewBox="0 0 480 400" role="img" aria-labelledby="radarDesc">
+      <svg id="radar" viewBox="0 0 480 420" role="img" aria-labelledby="radarDesc">
         <desc id="radarDesc"></desc>
       </svg>
       <p class="legend"><span class="dot"></span> כל קודקוד הוא פרדיגמה. ככל שהצורה מלאה יותר, כך יותר מחוקי המשחק החדשים כבר קורים אצלך.</p>
+      <p class="legend" id="compareLegend" hidden><span class="dot me"></span> אני <span class="dot all"></span> ממוצע כל המשיבים</p>
     </figure>
 
     <p class="callout" id="weakest"></p>
+    <div class="compare" id="compare" hidden>
+      <div class="actions"><button class="primary" id="compareBtn" type="button">הראה לי איך אני למול הכלל</button></div>
+      <p class="hint">לחיצה שולחת את 18 התשובות ומזהה אקראי של המכשיר. בלי שם, בלי מייל, בלי פרטים מזהים.</p>
+      <p class="status" id="compareStatus" role="status" aria-live="polite"></p>
+    </div>
     <div class="actions">
       <button class="primary" id="openBook" type="button">לספר החוקים החדש</button>
       <button class="ghost" id="restart" type="button">להתחיל מחדש</button>
@@ -501,6 +517,17 @@ section { display: flex; flex-direction: column; gap: 24px; animation: rise .35s
 }
 </script>
 
+<!-- ---------- CONFIG ----------
+  endpoint: כתובת ה-Web App של Apps Script (https://script.google.com/macros/s/.../exec). ריק = אין השוואה, שום דבר לא יוצא מהמכשיר.
+  minCompare: כמה מכשירים לפחות לפני שמוצג ממוצע. חייב להיות זהה ל-CONFIG.minCompare ב-apps-script/Code.gs.
+-->
+<script type="application/json" id="config">
+{
+  "endpoint": "",
+  "minCompare": 5
+}
+</script>
+
 <!-- ---------- DOMAIN ---------- -->
 <script id="rc-domain">
 // Domain: pure functions only. No DOM, no window, no storage, no network.
@@ -560,6 +587,44 @@ globalThis.RCDomain = (() => {
     return [text.slice(0, at), highlight, text.slice(at + highlight.length)];
   };
 
+  // Wire format: one "0"/"1" per item, paradigm by paradigm.
+  const encodeAnswers = (answers) => answers.flat().map((v) => (v ? "1" : "0")).join("");
+
+  const decodeAnswers = (bits, paradigms) => {
+    if (typeof bits !== "string" || bits.length !== maxScore(paradigms) || /[^01]/.test(bits)) {
+      throw new RangeError("Answers do not match the content spec");
+    }
+    let at = 0;
+    return paradigms.map((p) => p.items.map(() => bits[at++] === "1"));
+  };
+
+  const round = (x, digits) => Math.round(x * 10 ** digits) / 10 ** digits;
+
+  // Item averages (0..1, one per item) → paradigm averages (0..items), two decimals.
+  const averagePerParadigm = (itemAverages, paradigms) => {
+    if (!Array.isArray(itemAverages) || itemAverages.length !== maxScore(paradigms)) {
+      throw new RangeError("Averages do not match the content spec");
+    }
+    let at = 0;
+    return paradigms.map((p) => round(p.items.reduce((s) => s + Number(itemAverages[at++]), 0), 2));
+  };
+
+  // Where am I compared with everyone, paradigm by paradigm.
+  const compare = (per, avgPer, paradigms) => {
+    const above = [], below = [];
+    per.forEach((v, i) => {
+      if (v > avgPer[i]) above.push(paradigms[i].short);
+      else if (v < avgPer[i]) below.push(paradigms[i].short);
+    });
+    const avgTotal = round(avgPer.reduce((s, n) => s + n, 0), 1);
+    const myTotal = total(per);
+    const lead = myTotal > avgTotal ? "מעל הממוצע" : myTotal < avgTotal ? "מתחת לממוצע" : "בדיוק בממוצע";
+    const parts = [`${myTotal} מול ממוצע של ${avgTotal}: ${lead}.`];
+    if (above.length) parts.push(`יותר מהכלל ב: ${above.join(", ")}.`);
+    if (below.length) parts.push(`פחות מהכלל ב: ${below.join(", ")}.`);
+    return { above, below, avgTotal, myTotal, message: parts.join(" ") };
+  };
+
   const result = (answers, content) => {
     const per = perParadigm(answers);
     const score = total(per);
@@ -576,17 +641,68 @@ globalThis.RCDomain = (() => {
   return Object.freeze({
     emptyAnswers, perParadigm, total, maxScore, bandFor, bandEdges,
     weakest, weakestMessage, startChapter, radarPoint, splitHighlight, result,
+    encodeAnswers, decodeAnswers, averagePerParadigm, compare,
   });
+})();
+</script>
+
+<!-- ---------- NET ---------- -->
+<script id="rc-net">
+// Net adapter: the only block allowed to talk to the network or keep anything on the device.
+// It keeps exactly one thing: a random device id. Answers are sent only when the participant clicks.
+globalThis.RCNet = (() => {
+  "use strict";
+  const CONFIG = JSON.parse(document.getElementById("config").textContent);
+  const endpoint = typeof CONFIG.endpoint === "string" ? CONFIG.endpoint.trim() : "";
+  const enabled = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(endpoint);
+  const DEVICE_KEY = "rc.device";
+  let memoryId = null;
+
+  const randomId = () => {
+    const b = new Uint8Array(16);
+    crypto.getRandomValues(b);
+    return [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  };
+
+  // One id per device. If storage is blocked (private mode), fall back to one id per page load.
+  const deviceId = () => {
+    try {
+      const saved = localStorage.getItem(DEVICE_KEY);
+      if (/^[0-9a-f]{32}$/.test(saved || "")) return saved;
+      const fresh = randomId();
+      localStorage.setItem(DEVICE_KEY, fresh);
+      return fresh;
+    } catch {
+      return (memoryId ??= randomId());
+    }
+  };
+
+  // Saves this device's answers and returns { n, mine, avg } (avg is null below minCompare).
+  const submit = async (version, bits) => {
+    if (!enabled) throw new Error("Compare is not configured");
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // simple request: no CORS preflight
+      body: JSON.stringify({ v: version, d: deviceId(), a: bits }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "Rejected");
+    return data;
+  };
+
+  return Object.freeze({ enabled, minCompare: CONFIG.minCompare, submit });
 })();
 </script>
 
 <!-- ---------- UI ---------- -->
 <script id="rc-ui">
 // UI adapter: reads the content spec, asks the domain for answers, draws the DOM.
-// All state is in memory. Nothing is stored or sent anywhere.
+// Answers live in memory only. Anything that leaves the page goes through RCNet.
 (() => {
   "use strict";
   const D = globalThis.RCDomain;
+  const Net = globalThis.RCNet;
   const CONTENT = JSON.parse(document.getElementById("content").textContent);
   const PARADIGMS = CONTENT.paradigms;
   const BANDS = CONTENT.bands;
@@ -601,6 +717,7 @@ globalThis.RCDomain = (() => {
   let step = 0;
   let chapter = 0;
   let pinAnim = 0;
+  let lastResult = null;
 
   const el = (tag, cls, text) => {
     const n = document.createElement(tag);
@@ -668,6 +785,8 @@ globalThis.RCDomain = (() => {
     drawJourney(r);
     drawRadar(r);
     $("weakest").textContent = r.message;
+    lastResult = r;
+    resetCompare();
   }
 
   function drawJourney(r) {
@@ -710,7 +829,43 @@ globalThis.RCDomain = (() => {
     pinAnim = requestAnimationFrame(tick);
   }
 
-  function drawRadar(r) {
+  // ---------- compare with everyone ----------
+  function resetCompare() {
+    $("compare").hidden = !Net.enabled;
+    $("compareBtn").disabled = false;
+    $("compareBtn").textContent = "הראה לי איך אני למול הכלל";
+    $("compareStatus").textContent = "";
+    $("compareStatus").className = "status";
+    $("compareLegend").hidden = true;
+  }
+
+  async function runCompare() {
+    const btn = $("compareBtn"), status = $("compareStatus");
+    btn.disabled = true;
+    status.className = "status";
+    status.textContent = "שולח ומחשב...";
+    try {
+      const data = await Net.submit(CONTENT.meta.version, D.encodeAnswers(answers));
+      if (!data.avg) {
+        status.textContent = `התשובות שלך נשמרו. עד עכשיו ענו ${data.n}, ההשוואה תופיע מ-${Net.minCompare} משיבים.`;
+        btn.textContent = "לבדוק שוב";
+        btn.disabled = false;
+        return;
+      }
+      const avgPer = D.averagePerParadigm(data.avg, PARADIGMS);
+      drawRadar(lastResult, avgPer);
+      $("compareLegend").hidden = false;
+      status.className = "status ok";
+      status.textContent = `${D.compare(lastResult.per, avgPer, PARADIGMS).message} (מתוך ${data.n} משיבים)`;
+      btn.textContent = "לרענן את ההשוואה";
+      btn.disabled = false;
+    } catch {
+      status.textContent = "לא הצלחנו להתחבר כרגע. התוצאה שלך נשארת כאן, אפשר לנסות שוב.";
+      btn.disabled = false;
+    }
+  }
+
+  function drawRadar(r, avgPer) {
     const svg = $("radar");
     [...svg.children].forEach((c) => { if (c.tagName !== "desc") c.remove(); });
     const n = PARADIGMS.length, cx = 240, cy = 200, R = 125;
@@ -727,9 +882,15 @@ globalThis.RCDomain = (() => {
       svg.appendChild(svgEl("line", { x1: cx, y1: cy, x2: x, y2: y, class: "spoke" }));
     });
 
+    if (avgPer) {
+      const apts = avgPer.map((v, i) => pt(i, (Math.max(v, 0.12) * R) / full));
+      svg.appendChild(svgEl("polygon", { points: apts.map((p) => p.join(",")).join(" "), class: "shape avg" }));
+      apts.forEach(([x, y]) => svg.appendChild(svgEl("circle", { cx: x, cy: y, r: 4, class: "vertex avg" })));
+    }
+
     const pts = r.per.map((v, i) => pt(i, (Math.max(v, 0.12) * R) / full));
     const shape = svgEl("polygon", { points: pts.map((p) => p.join(",")).join(" "), class: "shape" });
-    if (!reduceMotion) {
+    if (!reduceMotion && !avgPer) {
       shape.style.transformOrigin = `${cx}px ${cy}px`;
       shape.animate([{ transform: "scale(0)" }, { transform: "scale(1)" }], { duration: 900, easing: "cubic-bezier(.2,.8,.2,1)" });
     }
@@ -747,10 +908,12 @@ globalThis.RCDomain = (() => {
       g.appendChild(svgEl("text", { x: lx, y: baseY, "text-anchor": side, class: "axis-num" }, `#${i + 1}`));
       g.appendChild(svgEl("text", { x: lx, y: baseY + 17, "text-anchor": side, class: "axis-name" }, PARADIGMS[i].short));
       g.appendChild(svgEl("text", { x: lx, y: baseY + 34, "text-anchor": side, class: "axis-score" }, `${v}/${full}`));
+      if (avgPer) g.appendChild(svgEl("text", { x: lx, y: baseY + 49, "text-anchor": side, class: "axis-avg" }, `כלל ${avgPer[i]}`));
       svg.appendChild(g);
     });
 
-    $("radarDesc").textContent = PARADIGMS.map((p, i) => `${p.name}: ${r.per[i]} מתוך ${full}`).join(". ");
+    $("radarDesc").textContent = PARADIGMS.map((p, i) =>
+      `${p.name}: ${r.per[i]} מתוך ${full}` + (avgPer ? `, ממוצע כל המשיבים ${avgPer[i]}` : "")).join(". ");
   }
 
   // ---------- rulebook ----------
@@ -794,6 +957,9 @@ globalThis.RCDomain = (() => {
   }
 
   // ---------- wiring ----------
+  $("privacyLocal").hidden = Net.enabled;
+  $("privacyCompare").hidden = !Net.enabled;
+  $("compareBtn").addEventListener("click", runCompare);
   PARADIGMS.forEach(() => $("rail").appendChild(document.createElement("span")));
   PARADIGMS.forEach((_, i) => {
     const d = el("button");

@@ -15,7 +15,11 @@ function block(id) {
 export const contentSource = block("content");
 export const domainSource = block("rc-domain");
 export const uiSource = block("rc-ui");
+export const netSource = block("rc-net");
+export const configSource = block("config");
 export const content = JSON.parse(contentSource);
+export const config = JSON.parse(configSource);
+export const appsScriptSource = readFileSync(new URL("../apps-script/Code.gs", import.meta.url), "utf8");
 
 // Run the domain in an empty sandbox: if it touches anything browser-only, it throws here.
 export function loadDomain() {
@@ -27,3 +31,30 @@ export function loadDomain() {
 
 // Code = everything that is not the content spec.
 export const codeOnly = html.replace(contentSource, "");
+
+// Run Code.gs in a sandbox with fake Google services. Returns the script's globals and the fake sheet.
+export function loadAppsScript({ rows = [], cache = {} } = {}) {
+  const sheet = {
+    rows: rows.map((r) => r.slice()),
+    getLastRow() { return this.rows.length; },
+    appendRow(r) { this.rows.push(r); },
+    setFrozenRows() {},
+    getRange(row, col, numRows, numCols) {
+      const data = this.rows.slice(row - 1, row - 1 + numRows).map((r) => r.slice(col - 1, col - 1 + numCols));
+      return { getValues: () => data };
+    },
+  };
+  const sandbox = {
+    Math, JSON, Object, Array, String, Number, RegExp, Date,
+    SpreadsheetApp: { getActiveSpreadsheet: () => ({ getSheetByName: () => sheet, insertSheet: () => sheet }) },
+    LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+    CacheService: { getScriptCache: () => ({ get: (k) => cache[k] ?? null, put: (k, v) => { cache[k] = v; } }) },
+    ContentService: {
+      MimeType: { JSON: "json" },
+      createTextOutput: (text) => ({ text, setMimeType() { return this; } }),
+    },
+  };
+  vm.runInNewContext(appsScriptSource + "\n;globalThis.__api = { doPost, doGet, setup, validate, summarize, CONFIG, HEADER };", sandbox);
+  const post = (body) => JSON.parse(sandbox.__api.doPost({ postData: { contents: typeof body === "string" ? body : JSON.stringify(body) } }).text);
+  return { ...sandbox.__api, post, sheet, cache };
+}
