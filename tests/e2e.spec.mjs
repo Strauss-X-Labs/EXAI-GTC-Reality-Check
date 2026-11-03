@@ -2,9 +2,11 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { pathToFileURL } from "node:url";
-import { HTML_PATH, content } from "./_source.mjs";
+import { HTML_PATH, content, variantUrl } from "./_source.mjs";
 
-const URL_ = pathToFileURL(HTML_PATH).href;
+// Most tests run the local-only variant: the same file with an empty endpoint.
+const URL_ = variantUrl("");
+const SHIPPED = pathToFileURL(HTML_PATH).href;
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 
 // P2: any request that is not the file itself or a font fails the test.
@@ -131,3 +133,20 @@ for (const screen of ["intro", "step", "result", "book"]) {
     expect(serious.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 }
+
+test("without an endpoint there is no compare button and nothing is stored", async ({ page }) => {
+  await page.goto(URL_);
+  await expect(page.locator("#privacyLocal")).toBeVisible();
+  await answer(page, [1, 1, 1, 1, 1, 1]);
+  await expect(page.locator("#compare")).toBeHidden();
+  expect(await page.evaluate(() => localStorage.length)).toBe(0);
+});
+
+test("the shipped file sends nothing until someone clicks compare", async ({ page }) => {
+  await page.goto(SHIPPED);
+  await answer(page, [2, 2, 2, 2, 2, 2]);
+  await page.getByRole("button", { name: "לספר החוקים החדש" }).click();
+  await page.getByRole("button", { name: "חזרה לתוצאה שלי" }).click();
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => localStorage.length)).toBe(0); // afterEach also asserts zero requests
+});

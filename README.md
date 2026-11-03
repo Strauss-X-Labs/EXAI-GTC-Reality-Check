@@ -2,7 +2,9 @@
 
 כלי סדנה מתוך "האלגוריתם של השינוי". 18 היגדים בשש פרדיגמות, ובסוף: איפה אתם בין הספר הישן לחדש, ובאיזה פרק כדאי להתחיל.
 
-**המוצר הוא קובץ אחד: [`index.html`](index.html).** פותחים אותו בדפדפן, וזהו. בלי שרת, בלי התקנה, בלי איסוף נתונים.
+**המוצר הוא קובץ אחד: [`index.html`](index.html).** פותחים אותו בדפדפן, וזהו. בלי שרת, בלי התקנה.
+
+אופציונלי: כפתור **"הראה לי איך אני למול הכלל"** שמשווה לממוצע כל המשיבים, דרך Apps Script שמחובר ל-Google Sheet. הוראות הפעלה: [`apps-script/README.md`](apps-script/README.md). בלי הגדרה, שום דבר לא יוצא מהמכשיר.
 
 ## שימוש בסדנה
 - **קישור:** כל push ל-`main` שעובר בדיקות עולה ל-GitHub Pages.
@@ -20,14 +22,15 @@
 ## פיתוח
 ```bash
 npm install
-npm test            # Domain, תוכן וארכיטקטורה. בלי דפדפן, פחות משנייה
+npm test            # Domain, תוכן, ארכיטקטורה ו-Apps Script. בלי דפדפן, פחות משנייה
 npx playwright install chromium
 npm run test:e2e    # זרימה מלאה, רשת, נגישות. טלפון ודסקטופ
 ```
 
 ## מבנה
 ```
-index.html              המוצר. STYLE → MARKUP → CONTENT → DOMAIN → UI
+index.html              המוצר. STYLE → MARKUP → CONTENT → CONFIG → DOMAIN → NET → UI
+apps-script/            Backend אופציונלי (Code.gs) והוראות הפעלה
 ARCHITECTURE.md         עקרונות, מבנה, ומה אוכף כל עיקרון
 docs/adr/               החלטות ארכיטקטורה
 tests/
@@ -35,7 +38,9 @@ tests/
   domain.test.mjs       לוגיקה טהורה
   content.test.mjs      סכמה ואינווריאנטים של התוכן
   architecture.test.mjs fitness functions לכל עיקרון
+  apps-script.test.mjs  Code.gs מול שירותי Google מדומים
   e2e.spec.mjs          Playwright + axe
+  e2e-compare.spec.mjs  הכפתור וההשוואה, מול Code.gs כ-backend
 .github/workflows/ci.yml בדיקות על כל PR, deploy רק מ-main ירוק
 ```
 

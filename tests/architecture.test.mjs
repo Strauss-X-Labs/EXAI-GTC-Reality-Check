@@ -3,9 +3,9 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, statSync } from "node:fs";
-import { html, HTML_PATH, content, contentSource, domainSource, uiSource, codeOnly } from "./_source.mjs";
+import { html, HTML_PATH, content, contentSource, configSource, config, domainSource, uiSource, netSource, codeOnly, appsScriptSource } from "./_source.mjs";
 
-const ALLOWED_ORIGINS = ["https://fonts.googleapis.com", "https://fonts.gstatic.com"];
+const ALLOWED_ORIGINS = ["https://fonts.googleapis.com", "https://fonts.gstatic.com", "https://script.google.com/macros/s/"];
 const NAMESPACES = ["http://www.w3.org/2000/svg"];
 const strip = (src) => src.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, ""); // ignore comments
 
@@ -31,29 +31,69 @@ describe("P1 · one file", () => {
   });
 });
 
-describe("P2 · answers never leave the device", () => {
-  const FORBIDDEN = ["fetch", "XMLHttpRequest", "sendBeacon", "WebSocket", "EventSource", "localStorage",
-    "sessionStorage", "indexedDB", "document.cookie", "Worker", "BroadcastChannel", "caches", "open("];
-  for (const api of FORBIDDEN) {
-    test(`no ${api}`, () => {
-      const re = new RegExp(`\\b${api.replace(/[.(]/g, (c) => "\\" + c)}`);
-      assert.doesNotMatch(strip(codeOnly.replace(/<style>[\s\S]*?<\/style>/g, "")), re);
-    });
+describe("P2 · nothing leaves without a click, and nothing identifying", () => {
+  const code = strip(codeOnly.replace(/<style>[\s\S]*?<\/style>/g, ""));
+  const outsideNet = strip(codeOnly.replace(netSource, "").replace(/<style>[\s\S]*?<\/style>/g, ""));
+  const net = strip(netSource);
+  const re = (api) => new RegExp(`\\b${api.replace(/[.(]/g, (c) => "\\" + c)}`);
+
+  for (const api of ["XMLHttpRequest", "sendBeacon", "WebSocket", "EventSource", "sessionStorage", "indexedDB",
+    "document.cookie", "Worker", "BroadcastChannel", "caches", "open("]) {
+    test(`no ${api} anywhere`, () => assert.doesNotMatch(code, re(api)));
   }
+
+  for (const api of ["fetch", "localStorage", "crypto"]) {
+    test(`${api} only inside #rc-net`, () => assert.doesNotMatch(outsideNet, re(api)));
+  }
+
+  test("#rc-net fetches only the configured endpoint", () => {
+    const calls = [...net.matchAll(/\bfetch\(([^,)]*)/g)].map((m) => m[1].trim());
+    assert.deepEqual(calls, ["endpoint"]);
+  });
+
+  test("#rc-net stores exactly one key: the random device id", () => {
+    const keys = [...net.matchAll(/localStorage\.(\w+)\(([^,)]*)/g)];
+    assert.ok(keys.length > 0);
+    for (const [, method, arg] of keys) {
+      assert.ok(["getItem", "setItem"].includes(method), `localStorage.${method} is not allowed`);
+      assert.equal(arg.trim(), "DEVICE_KEY");
+    }
+    assert.match(net, /const DEVICE_KEY = "rc\.device";/);
+  });
+
+  test("#rc-net sends exactly version, device id and answers", () => {
+    assert.match(net, /JSON\.stringify\(\{ v: version, d: deviceId\(\), a: bits \}\)/);
+  });
+
+  test("the endpoint is empty or an Apps Script Web App", () => {
+    assert.ok(config.endpoint === "" || /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(config.endpoint),
+      `endpoint: ${config.endpoint}`);
+  });
+
+  test("sending happens only from the compare button", () => {
+    const ui = strip(uiSource);
+    assert.equal((ui.match(/Net\.submit\(/g) ?? []).length, 1);
+    assert.match(ui, /\$\("compareBtn"\)\.addEventListener\("click", runCompare\)/);
+  });
+
+  test("the Apps Script never echoes other devices", () => {
+    assert.match(appsScriptSource, /return \{ ok: true, n: n, mine: mine, avg: avg \};/);
+  });
 
   test("no forms that could submit anywhere", () => {
     assert.doesNotMatch(html, /<form\b/i);
   });
 
-  test("the promise is still on the first screen", () => {
-    assert.match(html, /התשובות נשארות במכשיר שלכם בלבד/);
+  test("both privacy promises are on the first screen", () => {
+    assert.match(html, /התשובות נשארות במכשיר שלכם בלבד ולא נשלחות לאף אחד/);
+    assert.match(html, /בעילום שם/);
   });
 });
 
 describe("P3 · spec over body", () => {
   test("the UI reads content only from the #content block", () => {
     assert.match(uiSource, /getElementById\("content"\)/);
-    assert.equal((html.match(/type="application\/json"/g) ?? []).length, 1);
+    assert.equal((html.match(/type="application\/json"/g) ?? []).length, 2, "#content and #config only");
   });
 
   test("no content string is hard-coded outside the spec", () => {
@@ -67,8 +107,9 @@ describe("P3 · spec over body", () => {
     assert.deepEqual(leaked, []);
   });
 
-  test("the spec is valid JSON on its own", () => {
+  test("the spec and the config are valid JSON on their own", () => {
     assert.doesNotThrow(() => JSON.parse(contentSource));
+    assert.doesNotThrow(() => JSON.parse(configSource));
   });
 });
 
@@ -94,9 +135,16 @@ describe("P4 · ports and adapters", () => {
     assert.doesNotMatch(ui, /\.find\(\s*\(?b\)?\s*=>/, "band lookup belongs to the domain");
   });
 
-  test("dependency direction: content, then domain, then UI", () => {
-    const at = (id) => html.indexOf(`id="${id}"`);
-    assert.ok(at("content") < at("rc-domain") && at("rc-domain") < at("rc-ui"));
+  test("dependency direction: content, config, domain, net, UI", () => {
+    const at = (id) => html.indexOf(`<script type="application/json" id="${id}"`) + 1 || html.indexOf(`<script id="${id}"`);
+    const order = ["content", "config", "rc-domain", "rc-net", "rc-ui"].map(at);
+    assert.ok(order.every((x) => x > 0), order.join(","));
+    assert.deepEqual([...order].sort((a, b) => a - b), order);
+  });
+
+  test("net does not draw or compute", () => {
+    const net = strip(netSource);
+    assert.doesNotMatch(net, /createElement|innerHTML|textContent\s*=|\.append|RCDomain|PARADIGMS/);
   });
 
   test("domain never reads the UI", () => {
